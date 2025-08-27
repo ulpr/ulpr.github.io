@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Search requests</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="styles.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <h1>Search requests</h1>
+    <div class="container">
+        <div id="counterLinesContent" class="content">
+            <div class="stats-container">
+                <div class="stats-card">
+                    <div class="stat-row">
+                        <div class="stat-label">Request</div>
+                        <div class="stat-value-grid request-grid" id="requestCell">
+                            <input id="requestInput" type="text" placeholder="Enter your request" autocomplete="off" spellcheck="false">
+                            <div class="actions">
+                                <div id="searchButton" class="action-icon search-button" title="Search">
+                                    <img class="search-icon" src="img/search.svg" alt="/" draggable="false">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Database</div>
+                        <div id="databaseCell" class="stat-value-grid">
+                            <span id="fileName"></span>
+                            <div class="actions">
+                                <div id="downloadResultsButton" class="action-icon disabled" title="Download results">
+                                    <img class="icon down" src="img/arrow.svg" alt="/" draggable="false">
+                                </div>
+                                <div id="uploadFolderButton" class="action-icon" title="Upload from folder">
+                                    <img class="icon folder" src="img/folder.svg" alt="/" draggable="false">
+                                </div>
+                                <div id="uploadFileButton" class="action-icon" title="Upload file">
+                                    <img class="icon" src="img/arrow.svg" alt="/" draggable="false">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Lines found</div>
+                        <div id="fileSize" class="stat-value"></div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Current speed</div>
+                        <div id="CurrentSpeed" class="stat-value"></div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Settings</div>
+                        <div id="Settings" class="stat-value">
+                            <div class="settings-col">
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="showFileNames">
+                                    <span>Debug mode</span>
+                                </label>
+                            </div>
+                            <div class="settings-col">
+                                <label class="settings-checkbox">
+                                    <input type="checkbox" id="caseSensitive">
+                                    <span>Case-sensitive</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Time spent</div>
+                        <div id="timeSpent" class="stat-value"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="inputPanel" class="input-panel">
+            <div class="code-editor" id="codeEditor">
+                <div id="lineNumbers" class="gutter">1</div>
+                <textarea id="bigInput" spellcheck="false" wrap="off" placeholder=""></textarea>
+            </div>
+        </div>
+        <input type="file" id="fileInput" style="display:none">
+    </div>
+    <div id="dropOverlay">Drop file to upload</div>
+    <div class="footer">[BETA] Version: 27.08.2025 | Copyright © 2025 by ulpr</div>
+
+    <script src="js/state.js"></script>
+    <script src="js/uploads.js"></script>
+    <script src="js/drag-and-drop.js"></script>
+    <script src="js/search.js"></script>
+</body>
+</html>
