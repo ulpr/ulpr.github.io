@@ -38,7 +38,7 @@
     refs.searchButton.classList.toggle("enabled", enabled);
     document.body.classList.toggle("searching", state.searching);
     if (refs.heading) {
-      refs.heading.textContent = state.searching ? "Searching..." : "Search requests";
+      refs.heading.textContent = state.searching ? "Searching..." : "Search requests [ULPR]";
     }
 
     const disabled = state.searching;
@@ -186,3 +186,4 @@
   setSearchButtonState();
   setDownloadButtonState();
 })();
+
