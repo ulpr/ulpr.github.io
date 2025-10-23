@@ -31,7 +31,7 @@
 
   App.state = state;
 
-  const hasRequestText = () => refs.requestInput.value.trim().length > 0;
+  const hasRequestText = () => refs.requestInput.value.trim().length > 3;
 
   const setSearchButtonState = () => {
     const enabled = hasRequestText() && state.hasDatabase && !state.searching;
@@ -186,4 +186,5 @@
   setSearchButtonState();
   setDownloadButtonState();
 })();
+
 
