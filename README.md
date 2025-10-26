@@ -1,5 +1,9 @@
 [Go to the web app](https://ulpr.github.io/)
 
+Changelog:
+26.10.2025 – fix: not all lines were found
+23.10.2025 – minimum search query length 3 characters
+
 ## License
 
 This project is licensed under the 
