@@ -21,6 +21,12 @@
       const blob = file.slice(0, Math.min(n, file.size));
       return new Uint8Array(await blob.arrayBuffer());
     },
+    async readRange(file, start, end) {
+      const s = Math.max(0, Math.min(start, file.size));
+      const e = Math.max(s, Math.min(end, file.size));
+      const blob = file.slice(s, e);
+      return new Uint8Array(await blob.arrayBuffer());
+    },
     detectBOM(bytes) {
       if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) return { enc: "utf-8", skip: 3 };
       if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) return { enc: "utf-16le", skip: 2 };
@@ -117,7 +123,7 @@
         }
 
         const OUT_CHUNK = 4 * 1024 * 1024;
-        const DISPLAY_LIMIT = 2 * 1024 * 1024;
+        const DISPLAY_LIMIT = Infinity;
         const overallStarted = performance.now();
 
         const displayRef = { text: "" };
@@ -128,7 +134,6 @@
 
         let overallHits = 0;
         let overallBytes = 0;
-        const overallSize = files.reduce((sum, f) => sum + f.size, 0);
 
         function appendText(s) {
           const clean = encUtils.sanitizeText(s || "");
@@ -152,16 +157,35 @@
           r.linesFoundEl.textContent = String(overallHits);
         }
 
+        async function buildLineAlignedTasks(file, baseOffset, totalSize, chunkSize) {
+          const tasks = [];
+          let cur = baseOffset;
+          const endAll = baseOffset + totalSize;
+          const PROBE = 131072;
+          while (cur < endAll) {
+            let idealEnd = Math.min(cur + chunkSize, endAll);
+            if (idealEnd < endAll) {
+              const probe = await encUtils.readRange(file, idealEnd, Math.min(idealEnd + PROBE, endAll));
+              let found = -1;
+              for (let i = 0; i < probe.length; i++) {
+                if (probe[i] === 0x0a) {
+                  found = i;
+                  break;
+                }
+              }
+              if (found !== -1) {
+                idealEnd = idealEnd + found + 1;
+              }
+            }
+            tasks.push({ start: cur, end: idealEnd });
+            cur = idealEnd;
+          }
+          return tasks;
+        }
+
         const scanOne = async (file) =>
           new Promise(async (resolve, reject) => {
             const labelPrefix = prefixLabel(file);
-            // ------------------------DEBUG
-            if (showLabels && labelPrefix) {
-              const filePath = file.webkitRelativePath && file.webkitRelativePath.length ? file.webkitRelativePath : file.name;
-              console.log(`Searching file: ${filePath}`);
-            }
-            // ------------------------DEBUG
-            let matches = 0;
             let bytesDone = 0;
             const started = performance.now();
 
@@ -187,13 +211,10 @@
                 if (d.type === "chunk") {
                   appendText(d.text);
                 } else if (d.type === "done") {
-                  matches += d.count || 0;
                   overallHits += d.count || 0;
                   overallBytes += file.size;
                   setSpeed("");
-                  try {
-                    w.terminate();
-                  } catch (_) {}
+                  try { w.terminate(); } catch (_) {}
                   resolve();
                 }
               };
@@ -225,12 +246,7 @@
             CHUNK_SIZE = Math.min(Math.max(32 * 1024 * 1024, CHUNK_SIZE), Math.ceil(totalSize / Math.max(1, workersCount)));
             CHUNK_SIZE = Math.min(CHUNK_SIZE, 256 * 1024 * 1024);
 
-            const tasks = [];
-            for (let s = 0; s < totalSize; s += CHUNK_SIZE) {
-              const start = baseOffset + s;
-              const end = Math.min(baseOffset + s + CHUNK_SIZE, file.size);
-              tasks.push({ start, end });
-            }
+            const tasks = await buildLineAlignedTasks(file, baseOffset, totalSize, CHUNK_SIZE);
 
             if (tasks.length < workersCount) workersCount = tasks.length;
 
@@ -244,9 +260,24 @@
               updateOverallSpeed();
             }, 180);
 
+            const taskBuffers = new Array(tasks.length);
+            for (let i = 0; i < taskBuffers.length; i++) taskBuffers[i] = { chunks: [], done: false, count: 0 };
+            let nextFlushIndex = 0;
+
+            function tryFlushInOrder() {
+              while (nextFlushIndex < taskBuffers.length && taskBuffers[nextFlushIndex].done) {
+                appendText(taskBuffers[nextFlushIndex].chunks.join(""));
+                overallHits += taskBuffers[nextFlushIndex].count;
+                nextFlushIndex++;
+              }
+              r.linesFoundEl.textContent = String(overallHits);
+            }
+
             function assign(worker) {
               if (nextTask >= tasks.length) return false;
-              const t = tasks[nextTask++];
+              const idx = nextTask++;
+              const t = tasks[idx];
+              worker.__taskIndex = idx;
               worker.postMessage({
                 cmd: "scan-utf8-fast",
                 file,
@@ -271,30 +302,30 @@
                 if (myToken !== token) return;
                 const d = ev.data || {};
                 if (d.type === "error") {
-                  try {
-                    workers.forEach(x => x.terminate());
-                  } catch (_) {}
+                  try { workers.forEach(x => x.terminate()); } catch (_) {}
                   return onError(d.error);
                 }
+                const idx = this.__taskIndex;
                 if (d.type === "chunk") {
-                  appendText(d.text);
+                  taskBuffers[idx].chunks.push(encUtils.sanitizeText(d.text || ""));
                 } else if (d.type === "progress") {
                   const b = d.bytes | 0;
                   bytesDone += b;
                   overallBytes += b;
                   updateStatusThrottled();
                 } else if (d.type === "done") {
-                  matches += d.count || 0;
-                  overallHits += d.count || 0;
+                  taskBuffers[idx].done = true;
+                  taskBuffers[idx].count += d.count || 0;
                   if (!assign(this)) {
-                    try {
-                      this.terminate();
-                    } catch (_) {}
+                    try { this.terminate(); } catch (_) {}
                     doneWorkers++;
                     if (doneWorkers === workers.length) {
+                      tryFlushInOrder();
                       setSpeed("");
                       resolve();
                     }
+                  } else {
+                    tryFlushInOrder();
                   }
                 }
               };
@@ -317,9 +348,13 @@
         } finally {
           const totalElapsed = performance.now() - overallStarted;
           if (myToken === token) {
-            if (displayRef.text.length === 0) r.bigInput.value = "";
+            let finalText = displayRef.text;
+            finalText = finalText.replace(/\r?\n$/, "");
+            finalText = finalText.replace(/\u2026$/, "");
+            displayRef.text = finalText;
+            r.bigInput.value = finalText;
             r.timeSpentEl.textContent = encUtils.formatDuration(totalElapsed);
-            r.linesFoundEl.textContent = String(overallHits);
+            r.linesFoundEl.textContent = String((finalText && finalText.length) ? finalText.split(/\r?\n/).length : 0);
             r.currentSpeedEl.textContent = "";
             app.ui.updateLineNumbers();
             app.ui.updateDownloadState();
@@ -360,7 +395,6 @@
     controller.start({
       files: app.state.selectedFiles,
       query,
-      everyOccurrence: false,
       caseInsensitive,
       showLabels
     });
