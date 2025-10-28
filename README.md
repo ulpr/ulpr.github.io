@@ -2,6 +2,8 @@
 
 Changelog:
 
+28.10.2025 – added search by enter
+
 26.10.2025 – fix: not all lines were found
 
 23.10.2025 – minimum search query length 3 characters
