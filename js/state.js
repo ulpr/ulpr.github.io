@@ -40,7 +40,6 @@
     if (refs.heading) {
       refs.heading.textContent = state.searching ? "Searching..." : "Search requests [ULPR]";
     }
-
     const disabled = state.searching;
     refs.showFileNamesEl.disabled = disabled;
     refs.caseSensitiveEl.disabled = disabled;
@@ -49,7 +48,6 @@
     refs.uploadFileButton.style.pointerEvents = disabled ? "none" : "";
     refs.uploadFolderButton.style.pointerEvents = disabled ? "none" : "";
     refs.downloadResultsButton.style.pointerEvents = disabled ? "none" : "";
-
     refs.currentSpeedEl.style.display = state.searching ? "" : "none";
   };
 
@@ -71,10 +69,8 @@
   const describeFiles = (files) => {
     const arr = Array.from(files || []);
     if (!arr.length) return { label: "", tooltip: "", hasDb: false };
-
     const folder = extractFolderName(arr);
     const names = arr.map((f) => f.name);
-
     let label = "";
     if (folder) {
       label = `${folder} (${arr.length} files)`;
@@ -83,23 +79,19 @@
     } else {
       label = `${arr.length} files`;
     }
-
     return { label, tooltip: names.join("\n"), hasDb: true };
   };
 
   const applySelectedFiles = (files) => {
     state.selectedFiles = Array.from(files || []);
     const { label, tooltip, hasDb } = describeFiles(state.selectedFiles);
-
     state.hasDatabase = hasDb;
     refs.fileNameEl.textContent = label;
-
     if (tooltip) {
       refs.databaseCell.title = tooltip;
     } else {
       refs.databaseCell.removeAttribute("title");
     }
-
     setSearchButtonState();
   };
 
@@ -112,10 +104,8 @@
     const isLowResolution = window.innerWidth <= 1366 && window.innerHeight <= 768;
     const panelHeight = isLowResolution ? "305px" : "500px";
     refs.inputPanel.style.height = panelHeight;
-
     refs.inputPanel.classList.add("open");
     document.body.classList.add("panel-open");
-
     renderLineNumbers();
     setDownloadButtonState();
     refs.bigInput.focus();
@@ -133,12 +123,10 @@
 
   const downloadResults = () => {
     if (refs.downloadResultsButton.classList.contains("disabled")) return;
-
     const req = refs.requestInput.value.trim();
     const safe = req.replace(/[^a-zA-Z0-9@._-]+/g, "_");
     const filename = safe ? `result_${safe}.txt` : "result.txt";
     const content = refs.bigInput.value;
-
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -168,8 +156,16 @@
     refs.lineNumbers.scrollTop = refs.bigInput.scrollTop;
   };
 
+  const handleRequestInputEnter = (e) => {
+    if (e.key === "Enter" && refs.searchButton.classList.contains("enabled")) {
+      e.preventDefault();
+      refs.searchButton.click();
+    }
+  };
+
   refs.downloadResultsButton.addEventListener("click", downloadResults);
   refs.requestInput.addEventListener("input", setSearchButtonState);
+  refs.requestInput.addEventListener("keydown", handleRequestInputEnter);
   document.addEventListener("selectstart", guardSelection);
   refs.bigInput.addEventListener("input", handleEditorInput);
   refs.bigInput.addEventListener("scroll", syncLineNumbersScroll);
@@ -186,5 +182,3 @@
   setSearchButtonState();
   setDownloadButtonState();
 })();
-
-
