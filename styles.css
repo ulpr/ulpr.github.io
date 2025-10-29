@@ -62,3 +62,6 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;-moz-use
 #databaseCell .actions,#databaseCell .actions *{-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
 #fileSize{color:lime}
 .footer{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:14px;opacity:.5}
+.footer a {color:lime;text-decoration: none;}
+.footer a:visited {color:lime;}
+.footer a:hover {text-decoration: underline;}
