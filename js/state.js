@@ -19,6 +19,8 @@
     showFileNamesEl: document.getElementById("showFileNames"),
     caseSensitiveEl: document.getElementById("caseSensitive"),
     heading: document.querySelector("h1"),
+    loginpass: document.getElementById("loginpass"),
+    mailpass: document.getElementById("mailpass"),
   };
 
   App.refs = refs;
@@ -27,6 +29,7 @@
     hasDatabase: false,
     selectedFiles: [],
     searching: false,
+    originalResults: "",
   };
 
   App.state = state;
@@ -56,6 +59,13 @@
       .split("\n")
       .some((l) => l.trim().length > 0);
     refs.downloadResultsButton.classList.toggle("disabled", !hasLines);
+    const disableFilters = !hasLines;
+    [refs.loginpass, refs.mailpass].forEach((cb) => {
+      if (!cb) return;
+      cb.disabled = disableFilters;
+      const label = cb.closest(".settings-checkbox");
+      if (label) label.classList.toggle("disabled", disableFilters);
+    });
   };
 
   const extractFolderName = (files) => {
@@ -116,6 +126,7 @@
     refs.timeSpentEl.textContent = "";
     refs.linesFoundEl.textContent = "";
     refs.currentSpeedEl.textContent = "";
+    state.originalResults = "";
     renderLineNumbers();
     setDownloadButtonState();
     refs.bigInput.focus();
@@ -148,6 +159,9 @@
   };
 
   const handleEditorInput = () => {
+    if (!refs.loginpass.checked && !refs.mailpass.checked) {
+      state.originalResults = refs.bigInput.value;
+    }
     renderLineNumbers();
     setDownloadButtonState();
   };
@@ -163,12 +177,81 @@
     }
   };
 
+  const formatLine = (line) => {
+    const match = line.match(/.*:([^:]+):([^:]+)$/);
+    return match ? match[1] + ":" + match[2] : null;
+  };
+
+  const filterLoginPass = (text) => {
+    return text
+      .split("\n")
+      .map((l) => formatLine(l))
+      .filter((v) => v !== null)
+      .join("\n");
+  };
+
+  const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+
+  const filterMailPass = (text) => {
+    return text
+      .split("\n")
+      .map((l) => {
+        const m = l.match(/.*:([^:]+):([^:]+)$/);
+        if (!m) return null;
+        const login = m[1];
+        const pass = m[2];
+        return isEmail(login) ? `${login}:${pass}` : null;
+      })
+      .filter((v) => v !== null)
+      .join("\n");
+  };
+
+  const dedupeLines = (text) => {
+    const seen = new Set();
+    const out = [];
+    for (const line of text.split("\n")) {
+      const t = line.trim();
+      if (!t) continue;
+      if (seen.has(t)) continue;
+      seen.add(t);
+      out.push(t);
+    }
+    return out.join("\n");
+  };
+
+  const applyFilters = () => {
+    const anyFilter = (refs.loginpass && refs.loginpass.checked) || (refs.mailpass && refs.mailpass.checked);
+    if (anyFilter) {
+      if (!state.originalResults) state.originalResults = refs.bigInput.value;
+      let filtered = state.originalResults;
+      if (refs.mailpass && refs.mailpass.checked) {
+        filtered = filterMailPass(state.originalResults);
+      } else if (refs.loginpass && refs.loginpass.checked) {
+        filtered = filterLoginPass(state.originalResults);
+      }
+      filtered = dedupeLines(filtered);
+      refs.bigInput.value = filtered;
+    } else {
+      if (state.originalResults !== "") {
+        refs.bigInput.value = state.originalResults;
+      }
+    }
+    renderLineNumbers();
+    setDownloadButtonState();
+  };
+
   refs.downloadResultsButton.addEventListener("click", downloadResults);
   refs.requestInput.addEventListener("input", setSearchButtonState);
   refs.requestInput.addEventListener("keydown", handleRequestInputEnter);
   document.addEventListener("selectstart", guardSelection);
   refs.bigInput.addEventListener("input", handleEditorInput);
   refs.bigInput.addEventListener("scroll", syncLineNumbersScroll);
+  if (refs.loginpass) {
+    refs.loginpass.addEventListener("change", applyFilters);
+  }
+  if (refs.mailpass) {
+    refs.mailpass.addEventListener("change", applyFilters);
+  }
 
   App.ui = {
     updateSearchState: setSearchButtonState,
@@ -177,6 +260,8 @@
     openInputPanel,
     resetAfterSearch,
     updateLineNumbers: renderLineNumbers,
+    applyLogPassFilterIfNeeded: applyFilters,
+    applyFilters,
   };
 
   setSearchButtonState();
