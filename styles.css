@@ -65,3 +65,6 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;-moz-use
 .footer a {color:lime;text-decoration: none;}
 .footer a:visited {color:lime;}
 .footer a:hover {text-decoration: underline;}
+.settings-checkbox.disabled{cursor:not-allowed}
+.settings-checkbox.disabled input[type="checkbox"]{cursor:not-allowed;opacity:.5}
+.settings-checkbox.disabled span{opacity:.5}
