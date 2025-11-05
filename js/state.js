@@ -52,14 +52,18 @@
     refs.uploadFolderButton.style.pointerEvents = disabled ? "none" : "";
     refs.downloadResultsButton.style.pointerEvents = disabled ? "none" : "";
     refs.currentSpeedEl.style.display = state.searching ? "" : "none";
+    [refs.loginpass, refs.mailpass].forEach((cb) => {
+      if (!cb) return;
+      cb.disabled = disabled || cb.disabled;
+      const label = cb.closest(".settings-checkbox");
+      if (label) label.classList.toggle("disabled", disabled || cb.disabled);
+    });
   };
 
   const setDownloadButtonState = () => {
-    const hasLines = refs.bigInput.value
-      .split("\n")
-      .some((l) => l.trim().length > 0);
+    const hasLines = refs.bigInput.value.split("\n").some((l) => l.trim().length > 0);
     refs.downloadResultsButton.classList.toggle("disabled", !hasLines);
-    const disableFilters = !hasLines;
+    const disableFilters = state.searching || !hasLines;
     [refs.loginpass, refs.mailpass].forEach((cb) => {
       if (!cb) return;
       cb.disabled = disableFilters;
@@ -71,7 +75,7 @@
   const extractFolderName = (files) => {
     const first = files[0];
     const rel = first.webkitRelativePath || "";
-    if (rel.includes("/")) return rel.split("/")[0];
+       if (rel.includes("/")) return rel.split("/")[0];
     const name = first.name || "";
     return name.includes(".") ? null : name;
   };
@@ -103,6 +107,7 @@
       refs.databaseCell.removeAttribute("title");
     }
     setSearchButtonState();
+    setDownloadButtonState();
   };
 
   const renderLineNumbers = () => {
@@ -151,11 +156,30 @@
   const guardSelection = (e) => {
     const inDatabase = e.target.closest("#databaseCell");
     const inActions = e.target.closest(".actions");
-    const inEditable = e.target.closest(
-      'input, textarea, select, [contenteditable="true"]'
-    );
+    const inEditable = e.target.closest('input, textarea, select, [contenteditable="true"]');
     if ((inDatabase && !inActions) || inEditable) return;
     e.preventDefault();
+  };
+
+  const countNonEmptyLines = (text) => {
+    return text.split("\n").reduce((acc, l) => acc + (l.trim() ? 1 : 0), 0);
+  };
+
+  const updateLinesFoundDisplay = () => {
+    const filterActive = (refs.loginpass && refs.loginpass.checked) || (refs.mailpass && refs.mailpass.checked);
+    if (!refs.linesFoundEl) return;
+    if (!refs.bigInput.value.trim()) {
+      refs.linesFoundEl.textContent = "";
+      return;
+    }
+    if (filterActive) {
+      const total = countNonEmptyLines(state.originalResults || refs.bigInput.value);
+      const filtered = countNonEmptyLines(refs.bigInput.value);
+      refs.linesFoundEl.textContent = `${total} (${filtered})`;
+    } else {
+      const total = countNonEmptyLines(refs.bigInput.value);
+      refs.linesFoundEl.textContent = `${total}`;
+    }
   };
 
   const handleEditorInput = () => {
@@ -164,6 +188,7 @@
     }
     renderLineNumbers();
     setDownloadButtonState();
+    updateLinesFoundDisplay();
   };
 
   const syncLineNumbersScroll = () => {
@@ -238,6 +263,7 @@
     }
     renderLineNumbers();
     setDownloadButtonState();
+    updateLinesFoundDisplay();
   };
 
   refs.downloadResultsButton.addEventListener("click", downloadResults);
@@ -254,7 +280,10 @@
   }
 
   App.ui = {
-    updateSearchState: setSearchButtonState,
+    updateSearchState: () => {
+      setSearchButtonState();
+      setDownloadButtonState();
+    },
     updateDownloadState: setDownloadButtonState,
     handleFiles: applySelectedFiles,
     openInputPanel,
