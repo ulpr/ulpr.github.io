@@ -75,7 +75,7 @@
   const extractFolderName = (files) => {
     const first = files[0];
     const rel = first.webkitRelativePath || "";
-       if (rel.includes("/")) return rel.split("/")[0];
+    if (rel.includes("/")) return rel.split("/")[0];
     const name = first.name || "";
     return name.includes(".") ? null : name;
   };
@@ -154,9 +154,12 @@
   };
 
   const guardSelection = (e) => {
-    const inDatabase = e.target.closest("#databaseCell");
-    const inActions = e.target.closest(".actions");
-    const inEditable = e.target.closest('input, textarea, select, [contenteditable="true"]');
+    let t = e.target;
+    if (!t || t.nodeType !== 1) t = t && t.parentElement ? t.parentElement : null;
+    if (!t) return;
+    const inDatabase = t.closest("#databaseCell");
+    const inActions = t.closest(".actions");
+    const inEditable = t.closest('input, textarea, select, [contenteditable="true"]');
     if ((inDatabase && !inActions) || inEditable) return;
     e.preventDefault();
   };
