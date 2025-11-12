@@ -1,18 +1,10 @@
-[Go to the web app](https://ulpr.github.io/)
+# <p align="center"> <a href="https://ulpr.github.io/">Go to the web app</a> </p>
 
-Changelog:
 
-12.11.2025 - fix error in the console Uncaught TypeError: e.target.closest is not a function at HTMLDocument.guardSelection
+<p align="center"> <a href="./CHANGELOG.md">Changelog</a> </p>
 
-05.11.2025 - added display of the amount of lines in the filter in "Lines found" brackets
+<img width="937" height="930" alt="preview" src="https://github.com/user-attachments/assets/3107f427-22e0-4a23-bd82-a263dd6b73b5" />
 
-04.11.2025 - 2 filters added (login:pass and mail:pass) + removing duplicates in result when filters are activated
-
-28.10.2025 – added search by enter
-
-26.10.2025 – fix: not all lines were found
-
-23.10.2025 – minimum search query length 3 characters
 
 ## License
 
