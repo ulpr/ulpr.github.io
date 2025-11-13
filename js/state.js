@@ -21,6 +21,8 @@
     heading: document.querySelector("h1"),
     loginpass: document.getElementById("loginpass"),
     mailpass: document.getElementById("mailpass"),
+    historyDropdown: document.getElementById("historyDropdown"),
+    requestCell: document.getElementById("requestCell"),
   };
 
   App.refs = refs;
@@ -30,6 +32,8 @@
     selectedFiles: [],
     searching: false,
     originalResults: "",
+    historyOpen: false,
+    currentHistoryFilter: "",
   };
 
   App.state = state;
@@ -58,6 +62,7 @@
       const label = cb.closest(".settings-checkbox");
       if (label) label.classList.toggle("disabled", disabled || cb.disabled);
     });
+    if (disabled) closeHistoryDropdown();
   };
 
   const setDownloadButtonState = () => {
@@ -202,6 +207,10 @@
     if (e.key === "Enter" && refs.searchButton.classList.contains("enabled")) {
       e.preventDefault();
       refs.searchButton.click();
+      closeHistoryDropdown();
+    }
+    if (e.key === "Escape") {
+      closeHistoryDropdown();
     }
   };
 
@@ -268,10 +277,127 @@
     setDownloadButtonState();
     updateLinesFoundDisplay();
   };
+  const normalizeQuery = (q) => q.trim().replace(/\s+/g, " ");
+  const readHistory = () => {
+    try {
+      const arr = JSON.parse(localStorage.getItem("history") || "[]");
+      return Array.isArray(arr) ? arr : [];
+    } catch {
+      return [];
+    }
+  };
+  const saveSearchQuery = () => {
+    const raw = refs.requestInput.value.trim();
+    if (!raw) return;
+    let arr;
+    try {
+      arr = JSON.parse(localStorage.getItem("history") || "[]");
+      if (!Array.isArray(arr)) arr = [];
+    } catch (e) {
+      arr = [];
+    }
+    const norm = normalizeQuery(raw);
+    const exists = arr.some((x) => normalizeQuery(String(x)) === norm);
+    if (!exists) {
+      arr.push(raw);
+      localStorage.setItem("history", JSON.stringify(arr));
+    }
+  };
+  const removeFromHistory = (value) => {
+    const norm = normalizeQuery(String(value || ""));
+    let arr = [];
+    try {
+      const parsed = JSON.parse(localStorage.getItem("history") || "[]");
+      arr = Array.isArray(parsed) ? parsed : [];
+    } catch {}
+    arr = arr.filter(x => normalizeQuery(String(x)) !== norm);
+    localStorage.setItem("history", JSON.stringify(arr));
+  };
+  const openHistoryDropdown = (filter = "") => {
+    if (state.searching) return;
 
+    state.currentHistoryFilter = String(filter || "");
+
+    const data = readHistory();
+    const q = state.currentHistoryFilter.trim().toLowerCase();
+
+    const src = q ? data.filter(x => String(x).toLowerCase().includes(q)) : data;
+    let list = src.slice().reverse().slice(0, 50);
+
+    if (!list.length && data.length) {
+      state.currentHistoryFilter = "";
+      const all = data.slice().reverse().slice(0, 50);
+      if (!all.length) { closeHistoryDropdown(); return; }
+      list = all;
+    }
+
+    if (!list.length) { closeHistoryDropdown(); return; }
+
+    refs.historyDropdown.innerHTML = "";
+    for (const item of list) {
+      const div = document.createElement("div");
+      div.className = "history-item";
+      div.title = item;
+
+      const text = document.createElement("div");
+      text.className = "history-item-text";
+      text.textContent = item;
+
+      const btn = document.createElement("div");
+      btn.className = "history-item-remove";
+      btn.setAttribute("aria-label", "Remove");
+      btn.textContent = "×";
+
+      div.addEventListener("mousedown", (e) => {
+        if (e.target === btn) return;
+        e.preventDefault();
+        refs.requestInput.value = item;
+        setSearchButtonState();
+      });
+      div.addEventListener("click", (e) => {
+        if (e.target === btn) return;
+        closeHistoryDropdown();
+        refs.requestInput.focus();
+      });
+
+      btn.addEventListener("mousedown", (e) => {
+        e.preventDefault(); e.stopPropagation();
+        removeFromHistory(item);
+        openHistoryDropdown(state.currentHistoryFilter);
+      });
+      btn.addEventListener("click", (e) => {
+        e.preventDefault(); e.stopPropagation();
+      });
+
+      div.appendChild(text);
+      div.appendChild(btn);
+      refs.historyDropdown.appendChild(div);
+    }
+    refs.historyDropdown.classList.add("open");
+    state.historyOpen = true;
+  };
+
+  const closeHistoryDropdown = () => {
+    refs.historyDropdown.classList.remove("open");
+    state.historyOpen = false;
+  };
+  const maybeToggleHistory = () => {
+    if (document.activeElement === refs.requestInput) {
+      openHistoryDropdown(refs.requestInput.value);
+    }
+  };
   refs.downloadResultsButton.addEventListener("click", downloadResults);
-  refs.requestInput.addEventListener("input", setSearchButtonState);
+  refs.requestInput.addEventListener("input", () => {
+    setSearchButtonState();
+    openHistoryDropdown(refs.requestInput.value);
+  });
   refs.requestInput.addEventListener("keydown", handleRequestInputEnter);
+  refs.requestInput.addEventListener("focus", () => openHistoryDropdown(""));
+  refs.requestInput.addEventListener("click", () => openHistoryDropdown(""));
+  document.addEventListener("click", (e) => {
+    if (!refs.requestCell.contains(e.target)) closeHistoryDropdown();
+  });
+
   document.addEventListener("selectstart", guardSelection);
   refs.bigInput.addEventListener("input", handleEditorInput);
   refs.bigInput.addEventListener("scroll", syncLineNumbersScroll);
@@ -281,7 +407,13 @@
   if (refs.mailpass) {
     refs.mailpass.addEventListener("change", applyFilters);
   }
-
+  if (refs.searchButton) {
+    refs.searchButton.addEventListener("click", () => {
+      if (!refs.searchButton.classList.contains("enabled")) return;
+      saveSearchQuery();
+      closeHistoryDropdown();
+    });
+  }
   App.ui = {
     updateSearchState: () => {
       setSearchButtonState();
