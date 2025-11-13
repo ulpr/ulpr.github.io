@@ -6,11 +6,11 @@ body.searching{cursor:wait}
 h1{margin-bottom:20px;font-size:32px;text-align:center}
 .container{width:100%;max-width:874px}
 .stats-container{border:1px solid white}
-.stat-row{display:grid;grid-template-columns:165px 1fr;border-bottom:1px solid white}
+.stat-row{max-height:46px;height:46px;min-height:46px;display:grid;grid-template-columns:165px 1fr;border-bottom:1px solid white}
 .stat-row:last-child{border-bottom:none}
 .stat-label{font-size:18.7px;padding:11px;text-align:center;background:black;border-right:1px solid white}
 .stat-value{padding:11px;display:flex;align-items:center}
-.stat-value-grid{display:grid;grid-template-columns:1fr auto;align-items:center;padding-left:11px;gap:11px}
+.stat-value-grid{display:grid;grid-template-columns:1fr auto;align-items:center;padding-left:11px;gap:11px;position:relative}
 .request-grid{grid-template-columns:1fr auto}
 #fileName{white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
 .actions{display:flex;margin-left:auto;height:100%}
@@ -68,3 +68,10 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;-moz-use
 .settings-checkbox.disabled{cursor:not-allowed}
 .settings-checkbox.disabled input[type="checkbox"]{cursor:not-allowed;opacity:.5}
 .settings-checkbox.disabled span{opacity:.5}
+.history-dropdown{position:absolute;left:0px;right:54px;top:100%;background:#212121;border-top:none;max-height:230px;overflow:auto;display:none;z-index:20}
+.history-dropdown.open{display:block}
+.history-item{height:46px;padding:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;border-top:1px solid white;display:flex;align-items:center;justify-content:space-between;}
+.history-item:hover{background:#111}
+.history-item-text{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:8px;}
+.history-item-remove{flex:0 0 auto;width:32px;height:30px;line-height:30px;text-align:center;cursor:pointer;user-select:none;font-weight:200;font-size:58px;}
+.history-item-remove:hover{background:#111}
