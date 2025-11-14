@@ -109,12 +109,16 @@
           : params.file
           ? [params.file]
           : [];
-        const query = params.query;
+        const rawQuery = params.query;
+        const queries = String(rawQuery || "")
+          .split("|")
+          .map(s => s.trim())
+          .filter(s => s.length > 0);
         const everyOccurrence = false;
         const caseInsensitive = !!params.caseInsensitive;
         const showLabels = !!params.showLabels;
 
-        if (!files.length) {
+        if (!files.length || !queries.length) {
           active = false;
           app.state.searching = false;
           app.ui.updateSearchState();
@@ -183,7 +187,7 @@
           return tasks;
         }
 
-        const scanOne = async (file) =>
+        const scanOne = async (file, query) =>
           new Promise(async (resolve, reject) => {
             const labelPrefix = prefixLabel(file);
             let bytesDone = 0;
@@ -334,15 +338,18 @@
           });
 
         try {
-          for (let i = 0; i < files.length; i++) {
-            if (myToken !== token) {
-              active = false;
-              app.state.searching = false;
-              app.ui.updateSearchState();
-              if (window.updateUploadButtonsState) window.updateUploadButtonsState();
-              return;
+          for (let qi = 0; qi < queries.length; qi++) {
+            const query = queries[qi];
+            for (let i = 0; i < files.length; i++) {
+              if (myToken !== token) {
+                active = false;
+                app.state.searching = false;
+                app.ui.updateSearchState();
+                if (window.updateUploadButtonsState) window.updateUploadButtonsState();
+                return;
+              }
+              await scanOne(files[i], query);
             }
-            await scanOne(files[i], i);
           }
         } catch (_) {
         } finally {
