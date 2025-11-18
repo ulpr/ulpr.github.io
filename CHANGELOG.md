@@ -1,4 +1,4 @@
-18.11.2025 - added display of uploaded file sizes, fixed checkboxes, blocking mobile screen resolutions
+18.11.2025 - added display of uploaded file sizes, fixed checkboxes, blocking mobile screen resolutions, fix when dragging text
 
 14.11.2025 - added multiple request search
 
