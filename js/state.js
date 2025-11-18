@@ -167,36 +167,6 @@
     e.preventDefault();
   };
 
-  const countNonEmptyLines = (text) => {
-    return text.split("\n").reduce((acc, l) => acc + (l.trim() ? 1 : 0), 0);
-  };
-
-  const updateLinesFoundDisplay = () => {
-    const filterActive = (refs.loginpass && refs.loginpass.checked) || (refs.mailpass && refs.mailpass.checked);
-    if (!refs.linesFoundEl) return;
-    if (!refs.bigInput.value.trim()) {
-      refs.linesFoundEl.textContent = "";
-      return;
-    }
-    if (filterActive) {
-      const total = countNonEmptyLines(state.originalResults || refs.bigInput.value);
-      const filtered = countNonEmptyLines(refs.bigInput.value);
-      refs.linesFoundEl.textContent = `${total} (${filtered})`;
-    } else {
-      const total = countNonEmptyLines(refs.bigInput.value);
-      refs.linesFoundEl.textContent = `${total}`;
-    }
-  };
-
-  const handleEditorInput = () => {
-    if (!refs.loginpass.checked && !refs.mailpass.checked) {
-      state.originalResults = refs.bigInput.value;
-    }
-    renderLineNumbers();
-    setDownloadButtonState();
-    updateLinesFoundDisplay();
-  };
-
   const syncLineNumbersScroll = () => {
     refs.lineNumbers.scrollTop = refs.bigInput.scrollTop;
   };
@@ -211,70 +181,6 @@
       if (App.history && App.history.closeDropdown) App.history.closeDropdown();
     }
   };
-
-  const formatLine = (line) => {
-    const match = line.match(/.*:([^:]+):([^:]+)$/);
-    return match ? match[1] + ":" + match[2] : null;
-  };
-
-  const filterLoginPass = (text) => {
-    return text
-      .split("\n")
-      .map((l) => formatLine(l))
-      .filter((v) => v !== null)
-      .join("\n");
-  };
-
-  const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-
-  const filterMailPass = (text) => {
-    return text
-      .split("\n")
-      .map((l) => {
-        const m = l.match(/.*:([^:]+):([^:]+)$/);
-        if (!m) return null;
-        const login = m[1];
-        const pass = m[2];
-        return isEmail(login) ? `${login}:${pass}` : null;
-      })
-      .filter((v) => v !== null)
-      .join("\n");
-  };
-
-  const dedupeLines = (text) => {
-    const seen = new Set();
-    const out = [];
-    for (const line of text.split("\n")) {
-      const t = line.trim();
-      if (!t) continue;
-      if (seen.has(t)) continue;
-      seen.add(t);
-      out.push(t);
-    }
-    return out.join("\n");
-  };
-
-  const applyFilters = () => {
-    const anyFilter = (refs.loginpass && refs.loginpass.checked) || (refs.mailpass && refs.mailpass.checked);
-    if (anyFilter) {
-      if (!state.originalResults) state.originalResults = refs.bigInput.value;
-      let filtered = state.originalResults;
-      if (refs.mailpass && refs.mailpass.checked) {
-        filtered = filterMailPass(state.originalResults);
-      } else if (refs.loginpass && refs.loginpass.checked) {
-        filtered = filterLoginPass(state.originalResults);
-      }
-      filtered = dedupeLines(filtered);
-      refs.bigInput.value = filtered;
-    } else {
-      if (state.originalResults !== "") {
-        refs.bigInput.value = state.originalResults;
-      }
-    }
-    renderLineNumbers();
-    setDownloadButtonState();
-    updateLinesFoundDisplay();
-  };
   refs.downloadResultsButton.addEventListener("click", () => {if (App.downloadResults) App.downloadResults();});
   refs.requestInput.addEventListener("input", () => {
     setSearchButtonState();
@@ -288,13 +194,13 @@
   });
 
   document.addEventListener("selectstart", guardSelection);
-  refs.bigInput.addEventListener("input", handleEditorInput);
+  refs.bigInput.addEventListener("input", () => {if (App.filters && App.filters.handleEditorInput) App.filters.handleEditorInput();});
   refs.bigInput.addEventListener("scroll", syncLineNumbersScroll);
   if (refs.loginpass) {
-    refs.loginpass.addEventListener("change", applyFilters);
+    refs.loginpass.addEventListener("change", () => {if (App.filters && App.filters.applyFilters) App.filters.applyFilters();});
   }
   if (refs.mailpass) {
-    refs.mailpass.addEventListener("change", applyFilters);
+    refs.mailpass.addEventListener("change", () => {if (App.filters && App.filters.applyFilters) App.filters.applyFilters();});
   }
   if (refs.searchButton) {
     refs.searchButton.addEventListener("click", () => {
@@ -313,8 +219,8 @@
     openInputPanel,
     resetAfterSearch,
     updateLineNumbers: renderLineNumbers,
-    applyLogPassFilterIfNeeded: applyFilters,
-    applyFilters,
+    applyLogPassFilterIfNeeded: () => {if (App.filters && App.filters.applyFilters) App.filters.applyFilters();},
+    applyFilters: () => {if (App.filters && App.filters.applyFilters) App.filters.applyFilters();},
   };
 
   setSearchButtonState();
