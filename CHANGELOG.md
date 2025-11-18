@@ -1,3 +1,5 @@
+18.11.2025 - added display of uploaded file sizes and fixed checkboxes
+
 14.11.2025 - added multiple request search
 
 13.11.2025 - request history added
