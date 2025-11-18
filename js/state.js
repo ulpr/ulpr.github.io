@@ -34,6 +34,7 @@
     originalResults: "",
     historyOpen: false,
     currentHistoryFilter: "",
+    allowShowFileNames: false,
   };
 
   App.state = state;
@@ -51,7 +52,10 @@
       refs.heading.textContent = state.searching ? "Searching..." : "Search requests [ULPR]";
     }
     const disabled = state.searching;
-    refs.showFileNamesEl.disabled = disabled;
+    const disableShowFileNames = disabled || !state.allowShowFileNames;
+    refs.showFileNamesEl.disabled = disableShowFileNames;
+    const showFileNamesLabel = refs.showFileNamesEl.closest(".settings-checkbox");
+    if (showFileNamesLabel) showFileNamesLabel.classList.toggle("disabled", disableShowFileNames);
     refs.caseSensitiveEl.disabled = disabled;
     refs.requestInput.disabled = disabled;
     refs.bigInput.disabled = disabled;
@@ -103,7 +107,7 @@
 
   const describeFiles = (files) => {
     const arr = Array.from(files || []);
-    if (!arr.length) return { label: "", tooltip: "", hasDb: false };
+    if (!arr.length) return { label: "", tooltip: "", hasDb: false, allowShowFileNames: false };
     const folder = extractFolderName(arr);
     const names = arr.map((f) => f.name);
     const totalSize = arr.reduce((sum, f) => sum + (f.size || 0), 0);
@@ -115,13 +119,15 @@
     } else {
       label = `${arr.length} files (${formatSize(totalSize)})`;
     }
-    return { label, tooltip: names.join("\n"), hasDb: true };
+    const allowShowFileNames = !!folder || arr.length > 1;
+    return { label, tooltip: names.join("\n"), hasDb: true, allowShowFileNames };
   };
 
   const applySelectedFiles = (files) => {
     state.selectedFiles = Array.from(files || []);
-    const { label, tooltip, hasDb } = describeFiles(state.selectedFiles);
+    const { label, tooltip, hasDb, allowShowFileNames } = describeFiles(state.selectedFiles);
     state.hasDatabase = hasDb;
+    state.allowShowFileNames = allowShowFileNames;
     refs.fileNameEl.textContent = label;
     if (tooltip) {
       refs.databaseCell.title = tooltip;
