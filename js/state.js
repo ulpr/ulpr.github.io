@@ -41,7 +41,10 @@
   const hasRequestText = () => refs.requestInput.value.trim().length > 3;
 
   const setSearchButtonState = () => {
-    const enabled = hasRequestText() && state.hasDatabase && !state.searching;
+    const filtersActive =
+      (refs.loginpass && refs.loginpass.checked) ||
+      (refs.mailpass && refs.mailpass.checked);
+    const enabled = hasRequestText() && state.hasDatabase && !state.searching && !filtersActive;
     refs.searchButton.classList.toggle("enabled", enabled);
     document.body.classList.toggle("searching", state.searching);
     if (refs.heading) {
@@ -197,10 +200,16 @@
   refs.bigInput.addEventListener("input", () => {if (App.filters && App.filters.handleEditorInput) App.filters.handleEditorInput();});
   refs.bigInput.addEventListener("scroll", syncLineNumbersScroll);
   if (refs.loginpass) {
-    refs.loginpass.addEventListener("change", () => {if (App.filters && App.filters.applyFilters) App.filters.applyFilters();});
+    refs.loginpass.addEventListener("change", () => {
+      if (App.filters && App.filters.applyFilters) App.filters.applyFilters();
+      setSearchButtonState();
+    });
   }
   if (refs.mailpass) {
-    refs.mailpass.addEventListener("change", () => {if (App.filters && App.filters.applyFilters) App.filters.applyFilters();});
+    refs.mailpass.addEventListener("change", () => {
+      if (App.filters && App.filters.applyFilters) App.filters.applyFilters();
+      setSearchButtonState();
+    });
   }
   if (refs.searchButton) {
     refs.searchButton.addEventListener("click", () => {
