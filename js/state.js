@@ -68,12 +68,15 @@
   const setDownloadButtonState = () => {
     const hasLines = refs.bigInput.value.split("\n").some((l) => l.trim().length > 0);
     refs.downloadResultsButton.classList.toggle("disabled", !hasLines);
-    const disableFilters = state.searching || !hasLines;
+    const filterActive = (refs.loginpass && refs.loginpass.checked) || (refs.mailpass && refs.mailpass.checked);
+    const disableFiltersBase = state.searching || (!hasLines && !filterActive);
     [refs.loginpass, refs.mailpass].forEach((cb) => {
       if (!cb) return;
-      cb.disabled = disableFilters;
+      const other = cb === refs.loginpass ? refs.mailpass : refs.loginpass;
+      const disabled = disableFiltersBase || (other && other.checked);
+      cb.disabled = disabled;
       const label = cb.closest(".settings-checkbox");
-      if (label) label.classList.toggle("disabled", disableFilters);
+      if (label) label.classList.toggle("disabled", disabled);
     });
   };
 
@@ -85,18 +88,29 @@
     return name.includes(".") ? null : name;
   };
 
+  const formatSize = (bytes) => {
+    const kb = 1024;
+    const mb = kb * 1024;
+    const gb = mb * 1024;
+    if (bytes >= gb) return (bytes / gb).toFixed(1) + " GB";
+    if (bytes >= mb) return (bytes / mb).toFixed(1) + " MB";
+    if (bytes >= kb) return (bytes / kb).toFixed(1) + " KB";
+    return bytes + " B";
+  };
+
   const describeFiles = (files) => {
     const arr = Array.from(files || []);
     if (!arr.length) return { label: "", tooltip: "", hasDb: false };
     const folder = extractFolderName(arr);
     const names = arr.map((f) => f.name);
+    const totalSize = arr.reduce((sum, f) => sum + (f.size || 0), 0);
     let label = "";
     if (folder) {
-      label = `${folder} (${arr.length} files)`;
+      label = `${folder} (${arr.length} files, ${formatSize(totalSize)})`;
     } else if (arr.length === 1) {
-      label = arr[0].name;
+      label = `${arr[0].name} (${formatSize(totalSize)})`;
     } else {
-      label = `${arr.length} files`;
+      label = `${arr.length} files (${formatSize(totalSize)})`;
     }
     return { label, tooltip: names.join("\n"), hasDb: true };
   };
