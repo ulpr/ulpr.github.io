@@ -1,13 +1,19 @@
 document.addEventListener('dragenter', (e) => {
+  const hasFiles = e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+  if (!hasFiles) return;
   e.preventDefault();
   document.body.classList.add('dragging');
 });
 
 document.addEventListener('dragover', (e) => {
+  const hasFiles = e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+  if (!hasFiles) return;
   e.preventDefault();
 });
 
 document.addEventListener('dragleave', (e) => {
+  const hasFiles = e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+  if (!hasFiles) return;
   const leftDocument = e.target === document;
   const leftViewport =
     e.clientX <= 0 ||
@@ -21,6 +27,8 @@ document.addEventListener('dragleave', (e) => {
 });
 
 document.addEventListener('drop', (e) => {
+  const hasFiles = e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+  if (!hasFiles) return;
   e.preventDefault();
   document.body.classList.remove('dragging');
   const files = e.dataTransfer.files;
