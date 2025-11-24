@@ -1,29 +1,16 @@
-const app = window.App;
-const { refs } = app;
-
-const openFilePicker = () => {
-  const { fileInput } = refs;
-  fileInput.value = '';
-  fileInput.multiple = false;
-  fileInput.removeAttribute('webkitdirectory');
-  fileInput.removeAttribute('directory');
-  fileInput.click();
+const { refs, ui } = window.App;
+const handleFiles = e => ui.handleFiles(e.target.files);
+const openFilePicker = () => { const i = refs.fileInput; i.value = '';
+  i.multiple = false;
+  i.removeAttribute('webkitdirectory');
+  i.removeAttribute('directory');
+  i.click()
 };
-
-const openFolderPicker = () => {
-  const directoryInput = document.createElement('input');
-  directoryInput.type = 'file';
-  directoryInput.webkitdirectory = true;
-  directoryInput.addEventListener('change', (event) => {
-    app.ui.handleFiles(event.target.files);
-  });
-  directoryInput.click();
-};
-
-const handleFileInputChange = (event) => {
-  app.ui.handleFiles(event.target.files);
-};
-
+const directoryInput = document.createElement('input');
+directoryInput.type = 'file';
+directoryInput.webkitdirectory = true;
+directoryInput.addEventListener('change', handleFiles);
+const openFolderPicker = () => directoryInput.click();
 refs.uploadFileButton.addEventListener('click', openFilePicker);
 refs.uploadFolderButton.addEventListener('click', openFolderPicker);
-refs.fileInput.addEventListener('change', handleFileInputChange);
+refs.fileInput.addEventListener('change', handleFiles);
