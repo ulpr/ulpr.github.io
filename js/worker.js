@@ -64,12 +64,15 @@ function scanUtf8(file, start, end, leftOverlap, rightOverlap, query, outChunk, 
     const outObj = { out: '' }
     let totalMatches = 0
     let lastSolAbs = -1
+    function isLineBreak(b) {
+      return b === 10 || b === 13  // LF or CR
+    }
     function prevLF(pos) {
-      for (let i = pos; i >= 0; i--) if (bytes[i] === 10) return i
+      for (let i = pos; i >= 0; i--) if (isLineBreak(bytes[i])) return i
       return -1
     }
     function nextLF(pos) {
-      for (let i = pos; i < n; i++) if (bytes[i] === 10) return i
+      for (let i = pos; i < n; i++) if (isLineBreak(bytes[i])) return i
       return -1
     }
     let curSol = -1
