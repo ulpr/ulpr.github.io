@@ -1,3 +1,5 @@
+17.12.2025 - encoding fix (worker.js)
+
 18.11.2025 - added display of uploaded file sizes, fixed checkboxes, fix when dragging text
 
 14.11.2025 - added multiple request search
