@@ -1,3 +1,5 @@
+16.02.2026 - added debug mode hint when hovering the cursor
+
 17.12.2025 - encoding fix (worker.js)
 
 18.11.2025 - added display of uploaded file sizes, fixed checkboxes, fix when dragging text
