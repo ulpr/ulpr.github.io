@@ -21,6 +21,7 @@
     heading: document.querySelector("h1"),
     loginpass: document.getElementById("loginpass"),
     mailpass: document.getElementById("mailpass"),
+    numberpass: document.getElementById("numberpass"),
     historyDropdown: document.getElementById("historyDropdown"),
     requestCell: document.getElementById("requestCell"),
   };
@@ -44,7 +45,8 @@
   const setSearchButtonState = () => {
     const filtersActive =
       (refs.loginpass && refs.loginpass.checked) ||
-      (refs.mailpass && refs.mailpass.checked);
+      (refs.mailpass && refs.mailpass.checked) ||
+      (refs.numberpass && refs.numberpass.checked);
     const enabled = hasRequestText() && state.hasDatabase && !state.searching && !filtersActive;
     refs.searchButton.classList.toggle("enabled", enabled);
     document.body.classList.toggle("searching", state.searching);
@@ -63,7 +65,7 @@
     refs.uploadFolderButton.style.pointerEvents = disabled ? "none" : "";
     refs.downloadResultsButton.style.pointerEvents = disabled ? "none" : "";
     refs.currentSpeedEl.style.display = state.searching ? "" : "none";
-    [refs.loginpass, refs.mailpass].forEach((cb) => {
+    [refs.loginpass, refs.mailpass, refs.numberpass].forEach((cb) => {
       if (!cb) return;
       cb.disabled = disabled || cb.disabled;
       const label = cb.closest(".settings-checkbox");
@@ -75,12 +77,14 @@
   const setDownloadButtonState = () => {
     const hasLines = refs.bigInput.value.split("\n").some((l) => l.trim().length > 0);
     refs.downloadResultsButton.classList.toggle("disabled", !hasLines);
-    const filterActive = (refs.loginpass && refs.loginpass.checked) || (refs.mailpass && refs.mailpass.checked);
+    const filterActive =
+      (refs.loginpass && refs.loginpass.checked) ||
+      (refs.mailpass && refs.mailpass.checked) ||
+      (refs.numberpass && refs.numberpass.checked);
     const disableFiltersBase = state.searching || (!hasLines && !filterActive);
-    [refs.loginpass, refs.mailpass].forEach((cb) => {
+    [refs.loginpass, refs.mailpass, refs.numberpass].forEach((cb) => {
       if (!cb) return;
-      const other = cb === refs.loginpass ? refs.mailpass : refs.loginpass;
-      const disabled = disableFiltersBase || (other && other.checked);
+      const disabled = disableFiltersBase || [refs.loginpass, refs.mailpass, refs.numberpass].some((other) => other && other !== cb && other.checked);
       cb.disabled = disabled;
       const label = cb.closest(".settings-checkbox");
       if (label) label.classList.toggle("disabled", disabled);
@@ -213,6 +217,12 @@
   }
   if (refs.mailpass) {
     refs.mailpass.addEventListener("change", () => {
+      if (App.filters && App.filters.applyFilters) App.filters.applyFilters();
+      setSearchButtonState();
+    });
+  }
+  if (refs.numberpass) {
+    refs.numberpass.addEventListener("change", () => {
       if (App.filters && App.filters.applyFilters) App.filters.applyFilters();
       setSearchButtonState();
     });
