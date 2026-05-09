@@ -4,7 +4,7 @@ body.panel-open{overflow:auto}
 h1.searching, body.searching h1{cursor:wait}
 body.searching{cursor:wait}
 h1{margin-bottom:20px;font-size:32px;text-align:center}
-.container{width:100%;max-width:874px}
+.container{width:100%;max-width:952px}
 .stats-container{border:1px solid white}
 .stat-row{max-height:46px;height:46px;min-height:46px;display:grid;grid-template-columns:165px 1fr;border-bottom:1px solid white}
 .stat-row:last-child{border-bottom:none}
