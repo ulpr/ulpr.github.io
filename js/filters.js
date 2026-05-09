@@ -7,7 +7,10 @@
     const refs = App.refs;
     const state = App.state;
     if (!refs || !state || !refs.linesFoundEl) return;
-    const filterActive = (refs.loginpass && refs.loginpass.checked) || (refs.mailpass && refs.mailpass.checked);
+    const filterActive =
+      (refs.loginpass && refs.loginpass.checked) ||
+      (refs.mailpass && refs.mailpass.checked) ||
+      (refs.numberpass && refs.numberpass.checked);
     if (!refs.bigInput.value.trim()) {
       refs.linesFoundEl.textContent = "";
       return;
@@ -25,7 +28,7 @@
     const refs = App.refs;
     const state = App.state;
     if (!refs || !state) return;
-    if (!refs.loginpass.checked && !refs.mailpass.checked) {
+    if (!refs.loginpass.checked && !refs.mailpass.checked && !refs.numberpass.checked) {
       state.originalResults = refs.bigInput.value;
     }
     if (App.ui && App.ui.updateLineNumbers) App.ui.updateLineNumbers();
@@ -57,6 +60,19 @@
       .filter((v) => v !== null)
       .join("\n");
   };
+  const filterNumberPass = (text) => {
+    return text
+      .split("\n")
+      .map((l) => {
+        const m = l.match(/.*:([^:]+):([^:]+)$/);
+        if (!m) return null;
+        const login = m[1];
+        const pass = m[2];
+        return /^\d+$/.test(login) ? `${login}:${pass}` : null;
+      })
+      .filter((v) => v !== null)
+      .join("\n");
+  };
   const dedupeLines = (text) => {
     const seen = new Set();
     const out = [];
@@ -73,12 +89,17 @@
     const refs = App.refs;
     const state = App.state;
     if (!refs || !state) return;
-    const anyFilter = (refs.loginpass && refs.loginpass.checked) || (refs.mailpass && refs.mailpass.checked);
+    const anyFilter =
+      (refs.loginpass && refs.loginpass.checked) ||
+      (refs.mailpass && refs.mailpass.checked) ||
+      (refs.numberpass && refs.numberpass.checked);
     if (anyFilter) {
       if (!state.originalResults) state.originalResults = refs.bigInput.value;
       let filtered = state.originalResults;
       if (refs.mailpass && refs.mailpass.checked) {
         filtered = filterMailPass(state.originalResults);
+      } else if (refs.numberpass && refs.numberpass.checked) {
+        filtered = filterNumberPass(state.originalResults);
       } else if (refs.loginpass && refs.loginpass.checked) {
         filtered = filterLoginPass(state.originalResults);
       }
@@ -101,6 +122,7 @@
     filterLoginPass,
     isEmail,
     filterMailPass,
+    filterNumberPass,
     dedupeLines,
     applyFilters,
   };
