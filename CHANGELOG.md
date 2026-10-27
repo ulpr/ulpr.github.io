@@ -1,3 +1,5 @@
+27.10.2026 - optimization of searches of 2 or more queries (search.js, worker.js)
+
 09.05.2026 - added new filter number:pass
 
 16.02.2026 - added debug mode hint when hovering the cursor
