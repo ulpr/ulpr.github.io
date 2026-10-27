@@ -65,7 +65,7 @@ function scanUtf8(file, start, end, leftOverlap, rightOverlap, query, outChunk, 
     let totalMatches = 0
     let lastSolAbs = -1
     function isLineBreak(b) {
-      return b === 10 || b === 13
+      return b === 10 || b === 13  // LF or CR
     }
     function prevLF(pos) {
       for (let i = pos; i >= 0; i--) if (isLineBreak(bytes[i])) return i
