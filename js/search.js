@@ -71,6 +71,25 @@
   function createController() {
     let token = 0;
     let active = false;
+    const liveWorkers = new Set();
+
+    function spawnWorker() {
+      const w = getWorker();
+      liveWorkers.add(w);
+      return w;
+    }
+
+    function stopWorker(w) {
+      try { w.terminate(); } catch (_) {}
+      liveWorkers.delete(w);
+    }
+
+    function stopAllWorkers() {
+      liveWorkers.forEach(w => {
+        try { w.terminate(); } catch (_) {}
+      });
+      liveWorkers.clear();
+    }
 
     function makeFlusher(displayRef) {
       let pending = false;
@@ -95,6 +114,7 @@
       async start(params) {
         token++;
         const myToken = token;
+        stopAllWorkers();
         active = true;
         app.state.searching = true;
         app.ui.updateSearchState();
@@ -139,6 +159,17 @@
         let overallHits = 0;
         let overallBytes = 0;
 
+        const pool = [];
+
+        function acquireWorker() {
+          return pool.length ? pool.pop() : spawnWorker();
+        }
+
+        function releaseWorker(w) {
+          w.onmessage = null;
+          pool.push(w);
+        }
+
         function appendText(s) {
           const clean = encUtils.sanitizeText(s || "");
           if (!clean) return;
@@ -161,199 +192,283 @@
           r.linesFoundEl.textContent = String(overallHits);
         }
 
+        const results = new Array(queries.length);
+        for (let qi = 0; qi < queries.length; qi++) results[qi] = new Array(files.length);
+        let headQ = 0;
+        let headF = 0;
+        let headT = 0;
+
+        function newSegment() {
+          return { chunks: [], done: false };
+        }
+
+        function pump() {
+          while (headQ < queries.length) {
+            const list = results[headQ][headF];
+            if (list === undefined) break;
+            if (headT >= list.length) {
+              headT = 0;
+              headF++;
+              if (headF >= files.length) {
+                headF = 0;
+                headQ++;
+              }
+              continue;
+            }
+            const seg = list[headT];
+            if (seg.chunks.length) {
+              const text = seg.chunks.length === 1 ? seg.chunks[0] : seg.chunks.join("");
+              seg.chunks = [];
+              appendText(text);
+            }
+            if (!seg.done) break;
+            list[headT] = null;
+            headT++;
+          }
+        }
+
         async function buildLineAlignedTasks(file, baseOffset, totalSize, chunkSize) {
-          const tasks = [];
-          let cur = baseOffset;
           const endAll = baseOffset + totalSize;
           const PROBE = 131072;
-          while (cur < endAll) {
-            let idealEnd = Math.min(cur + chunkSize, endAll);
-            if (idealEnd < endAll) {
-              const probe = await encUtils.readRange(file, idealEnd, Math.min(idealEnd + PROBE, endAll));
-              let found = -1;
-              for (let i = 0; i < probe.length; i++) {
-                if (probe[i] === 0x0a) {
-                  found = i;
-                  break;
-                }
+          const marks = [];
+          for (let p = baseOffset + chunkSize; p < endAll; p += chunkSize) marks.push(p);
+          const found = new Array(marks.length);
+          let nextMark = 0;
+          const readers = [];
+          const lanes = Math.min(32, marks.length);
+          for (let l = 0; l < lanes; l++) {
+            readers.push((async () => {
+              while (nextMark < marks.length) {
+                const i = nextMark++;
+                const p = marks[i];
+                const probe = await encUtils.readRange(file, p, Math.min(p + PROBE, endAll));
+                found[i] = probe.indexOf(0x0a);
               }
-              if (found !== -1) {
-                idealEnd = idealEnd + found + 1;
-              }
-            }
-            tasks.push({ start: cur, end: idealEnd });
-            cur = idealEnd;
+            })());
           }
+          await Promise.all(readers);
+          const tasks = [];
+          let cur = baseOffset;
+          let aligned = true;
+          for (let i = 0; i < marks.length; i++) {
+            let b = marks[i];
+            let nextAligned = false;
+            if (found[i] !== -1) {
+              b += found[i] + 1;
+              nextAligned = true;
+            }
+            if (b <= cur) continue;
+            if (b >= endAll) break;
+            tasks.push({ start: cur, end: b, aligned });
+            cur = b;
+            aligned = nextAligned;
+          }
+          tasks.push({ start: cur, end: endAll, aligned });
           return tasks;
         }
 
-        const scanOne = async (file, query) =>
-          new Promise(async (resolve, reject) => {
-            const labelPrefix = prefixLabel(file);
-            let bytesDone = 0;
-            const started = performance.now();
-
-            function onError(msg) {
-              reject(new Error(msg));
-            }
-
-            const head = await encUtils.readHead(file, 4096);
-            const det = encUtils.detectBOM(head);
-            const enc = det.enc;
-            const skip = det.skip;
-
-            const qAscii = encUtils.isAscii(query);
-            const asciiCI = !!(caseInsensitive && qAscii);
-            const useFastUtf8 = enc === "utf-8" && (!caseInsensitive || asciiCI);
-
-            if (!useFastUtf8) {
-              const w = getWorker();
-              w.onmessage = function (ev) {
-                if (myToken !== token) return;
-                const d = ev.data || {};
-                if (d.type === "error") return onError(d.error);
-                if (d.type === "chunk") {
-                  appendText(d.text);
-                } else if (d.type === "done") {
-                  overallHits += d.count || 0;
-                  overallBytes += file.size;
-                  setSpeed("");
-                  try { w.terminate(); } catch (_) {}
-                  resolve();
-                }
-              };
-              w.postMessage({
-                cmd: "scan-generic",
-                file,
-                enc,
-                skip,
-                query,
-                outChunk: OUT_CHUNK,
-                ci: caseInsensitive,
-                everyOccurrence,
-                labelPrefix
-              });
-              return;
-            }
-
-            const baseOffset = skip;
-            const totalSize = Math.max(0, file.size - baseOffset);
-            if (totalSize <= 0) {
-              setSpeed("");
-              return resolve();
-            }
-
-            const cores = typeof navigator !== "undefined" && navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 4;
-            let workersCount = Math.min(Math.max((cores * 3) | 0, 6), 24);
-
-            let CHUNK_SIZE = 192 * 1024 * 1024;
-            CHUNK_SIZE = Math.min(Math.max(32 * 1024 * 1024, CHUNK_SIZE), Math.ceil(totalSize / Math.max(1, workersCount)));
-            CHUNK_SIZE = Math.min(CHUNK_SIZE, 256 * 1024 * 1024);
-
-            const tasks = await buildLineAlignedTasks(file, baseOffset, totalSize, CHUNK_SIZE);
-
-            if (tasks.length < workersCount) workersCount = tasks.length;
-
-            let nextTask = 0;
-            let doneWorkers = 0;
-
-            const updateStatusThrottled = encUtils.makeThrottled(() => {
-              const elapsed = performance.now() - started;
-              const speed = elapsed > 0 ? ((bytesDone / (1024 * 1024)) / (elapsed / 1000)).toFixed(0) : "0";
-              setSpeed(`${speed} MB/s`);
-              updateOverallSpeed();
-            }, 180);
-
-            const taskBuffers = new Array(tasks.length);
-            for (let i = 0; i < taskBuffers.length; i++) taskBuffers[i] = { chunks: [], done: false, count: 0 };
-            let nextFlushIndex = 0;
-
-            function tryFlushInOrder() {
-              while (nextFlushIndex < taskBuffers.length && taskBuffers[nextFlushIndex].done) {
-                appendText(taskBuffers[nextFlushIndex].chunks.join(""));
-                overallHits += taskBuffers[nextFlushIndex].count;
-                nextFlushIndex++;
-              }
-              r.linesFoundEl.textContent = String(overallHits);
-            }
-
-            function assign(worker) {
-              if (nextTask >= tasks.length) return false;
-              const idx = nextTask++;
-              const t = tasks[idx];
-              worker.__taskIndex = idx;
-              worker.postMessage({
-                cmd: "scan-utf8-fast",
-                file,
-                start: t.start,
-                end: t.end,
-                leftOverlap: 0,
-                rightOverlap: 0,
-                query,
-                outChunk: OUT_CHUNK,
-                everyOccurrence,
-                labelPrefix,
-                asciiCI
-              });
-              return true;
-            }
-
-            const workers = new Array(workersCount);
-
-            for (let i = 0; i < workersCount; i++) {
-              workers[i] = getWorker();
-              workers[i].onmessage = function (ev) {
-                if (myToken !== token) return;
-                const d = ev.data || {};
-                if (d.type === "error") {
-                  try { workers.forEach(x => x.terminate()); } catch (_) {}
-                  return onError(d.error);
-                }
-                const idx = this.__taskIndex;
-                if (d.type === "chunk") {
-                  taskBuffers[idx].chunks.push(encUtils.sanitizeText(d.text || ""));
-                } else if (d.type === "progress") {
-                  const b = d.bytes | 0;
-                  bytesDone += b;
-                  overallBytes += b;
-                  updateStatusThrottled();
-                } else if (d.type === "done") {
-                  taskBuffers[idx].done = true;
-                  taskBuffers[idx].count += d.count || 0;
-                  if (!assign(this)) {
-                    try { this.terminate(); } catch (_) {}
-                    doneWorkers++;
-                    if (doneWorkers === workers.length) {
-                      tryFlushInOrder();
-                      setSpeed("");
-                      resolve();
-                    }
-                  } else {
-                    tryFlushInOrder();
-                  }
-                }
-              };
-              assign(workers[i]);
-            }
-          });
-
-        try {
-          for (let qi = 0; qi < queries.length; qi++) {
-            const query = queries[qi];
-            for (let i = 0; i < files.length; i++) {
-              if (myToken !== token) {
-                active = false;
-                app.state.searching = false;
-                app.ui.updateSearchState();
-                if (window.updateUploadButtonsState) window.updateUploadButtonsState();
+        function runFast(file, fi, skip, idxs, asciiCI, labelPrefix) {
+          return new Promise((resolve, reject) => {
+            (async () => {
+              const baseOffset = skip;
+              const totalSize = Math.max(0, file.size - baseOffset);
+              if (totalSize <= 0) {
+                for (let k = 0; k < idxs.length; k++) results[idxs[k]][fi] = [];
+                pump();
+                setSpeed("");
+                resolve();
                 return;
               }
-              await scanOne(files[i], query);
+
+              const started = performance.now();
+              let bytesDone = 0;
+
+              const cores = typeof navigator !== "undefined" && navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 4;
+              let workersCount = Math.min(Math.max((cores * 3) | 0, 6), 24);
+
+              let CHUNK_SIZE = 192 * 1024 * 1024;
+              CHUNK_SIZE = Math.min(Math.max(32 * 1024 * 1024, CHUNK_SIZE), Math.ceil(totalSize / Math.max(1, workersCount)));
+              CHUNK_SIZE = Math.min(CHUNK_SIZE, 256 * 1024 * 1024);
+              CHUNK_SIZE = Math.max(CHUNK_SIZE, 1024 * 1024);
+
+              const tasks = await buildLineAlignedTasks(file, baseOffset, totalSize, CHUNK_SIZE);
+              if (myToken !== token) return;
+
+              if (tasks.length < workersCount) workersCount = tasks.length;
+
+              const qs = idxs.map(i => queries[i]);
+              const segs = new Array(idxs.length);
+              for (let k = 0; k < idxs.length; k++) {
+                const list = new Array(tasks.length);
+                for (let t = 0; t < tasks.length; t++) list[t] = newSegment();
+                segs[k] = list;
+                results[idxs[k]][fi] = list;
+              }
+              pump();
+
+              const updateStatusThrottled = encUtils.makeThrottled(() => {
+                const elapsed = performance.now() - started;
+                const speed = elapsed > 0 ? ((bytesDone / (1024 * 1024)) / (elapsed / 1000)).toFixed(0) : "0";
+                setSpeed(`${speed} MB/s`);
+                updateOverallSpeed();
+              }, 180);
+
+              let nextTask = 0;
+              let doneWorkers = 0;
+              let failed = false;
+              const workers = new Array(workersCount);
+
+              function assign(worker) {
+                if (nextTask >= tasks.length) return false;
+                const idx = nextTask++;
+                const t = tasks[idx];
+                worker.__taskIndex = idx;
+                worker.postMessage({
+                  cmd: "scan-utf8-multi",
+                  file,
+                  start: t.start,
+                  end: t.end,
+                  aligned: t.aligned,
+                  queries: qs,
+                  outChunk: OUT_CHUNK,
+                  everyOccurrence,
+                  labelPrefix,
+                  asciiCI
+                });
+                return true;
+              }
+
+              for (let i = 0; i < workersCount; i++) {
+                const w = acquireWorker();
+                workers[i] = w;
+                w.onmessage = function (ev) {
+                  if (myToken !== token || failed) return;
+                  const d = ev.data || {};
+                  if (d.type === "error") {
+                    failed = true;
+                    reject(new Error(d.error));
+                    return;
+                  }
+                  const idx = w.__taskIndex;
+                  if (d.type === "chunk") {
+                    segs[d.q][idx].chunks.push(d.text || "");
+                    pump();
+                  } else if (d.type === "progress") {
+                    const b = d.bytes | 0;
+                    bytesDone += b;
+                    overallBytes += b;
+                    updateStatusThrottled();
+                  } else if (d.type === "done") {
+                    const counts = d.counts || [];
+                    for (let k = 0; k < segs.length; k++) {
+                      segs[k][idx].done = true;
+                      overallHits += counts[k] || 0;
+                    }
+                    pump();
+                    r.linesFoundEl.textContent = String(overallHits);
+                    if (!assign(w)) {
+                      releaseWorker(w);
+                      doneWorkers++;
+                      if (doneWorkers === workers.length) {
+                        setSpeed("");
+                        resolve();
+                      }
+                    }
+                  }
+                };
+              }
+              for (let i = 0; i < workersCount; i++) assign(workers[i]);
+            })().catch(reject);
+          });
+        }
+
+        function runGeneric(file, fi, enc, skip, idxs, labelPrefix) {
+          return new Promise((resolve, reject) => {
+            const segs = new Array(idxs.length);
+            for (let k = 0; k < idxs.length; k++) {
+              const seg = newSegment();
+              segs[k] = seg;
+              results[idxs[k]][fi] = [seg];
             }
+            pump();
+            const w = acquireWorker();
+            w.onmessage = function (ev) {
+              if (myToken !== token) return;
+              const d = ev.data || {};
+              if (d.type === "error") {
+                reject(new Error(d.error));
+                return;
+              }
+              if (d.type === "chunk") {
+                segs[d.q].chunks.push(d.text || "");
+                pump();
+              } else if (d.type === "done") {
+                const counts = d.counts || [];
+                for (let k = 0; k < segs.length; k++) {
+                  segs[k].done = true;
+                  overallHits += counts[k] || 0;
+                }
+                overallBytes += file.size;
+                releaseWorker(w);
+                pump();
+                r.linesFoundEl.textContent = String(overallHits);
+                setSpeed("");
+                resolve();
+              }
+            };
+            w.postMessage({
+              cmd: "scan-generic-multi",
+              file,
+              enc,
+              skip,
+              queries: idxs.map(i => queries[i]),
+              outChunk: OUT_CHUNK,
+              ci: caseInsensitive,
+              everyOccurrence,
+              labelPrefix
+            });
+          });
+        }
+
+        async function scanFile(file, fi) {
+          const labelPrefix = prefixLabel(file);
+          const head = await encUtils.readHead(file, 4096);
+          if (myToken !== token) return new Promise(() => {});
+          const det = encUtils.detectBOM(head);
+          const enc = det.enc;
+          const skip = det.skip;
+          const fastIdx = [];
+          const genIdx = [];
+          for (let qi = 0; qi < queries.length; qi++) {
+            const q = queries[qi];
+            const asciiCI = !!(caseInsensitive && encUtils.isAscii(q));
+            const useFastUtf8 = enc === "utf-8" && (!caseInsensitive || asciiCI);
+            if (useFastUtf8) fastIdx.push(qi);
+            else genIdx.push(qi);
+          }
+          const jobs = [];
+          if (genIdx.length) jobs.push(runGeneric(file, fi, enc, skip, genIdx, labelPrefix));
+          if (fastIdx.length) jobs.push(runFast(file, fi, skip, fastIdx, caseInsensitive, labelPrefix));
+          await Promise.all(jobs);
+        }
+
+        try {
+          for (let fi = 0; fi < files.length; fi++) {
+            if (myToken !== token) {
+              active = false;
+              app.state.searching = false;
+              app.ui.updateSearchState();
+              if (window.updateUploadButtonsState) window.updateUploadButtonsState();
+              return;
+            }
+            await scanFile(files[fi], fi);
           }
         } catch (_) {
+          if (myToken === token) stopAllWorkers();
         } finally {
           const totalElapsed = performance.now() - overallStarted;
+          pool.forEach(stopWorker);
+          pool.length = 0;
           if (myToken === token) {
             let finalText = displayRef.text;
             finalText = finalText.replace(/\r?\n$/, "");
@@ -374,6 +489,7 @@
       },
       cancel() {
         token++;
+        stopAllWorkers();
         app.state.searching = false;
         app.ui.updateSearchState();
         if (window.updateUploadButtonsState) window.updateUploadButtonsState();
